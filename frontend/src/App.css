@@ -1,0 +1,324 @@
+/* === GLOBAL STYLES & CSS RESET === */
+:root {
+  --primary-color: #6d28d9;
+  --primary-hover: #5b21b6;
+  --background-color: #f3f4f6;
+  --card-background: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --border-color: #e5e7eb;
+  --error-color: #dc2626;
+  --success-color: #16a34a;
+  --status-todo: #f97316;
+  --status-verified: #22c55e;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  background-color: var(--background-color);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.app-container, .loading-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  justify-content: center;
+  align-items: center;
+}
+
+/* === CARD & CONTAINER STYLES === */
+.card {
+    background-color: var(--card-background);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    padding: 2rem;
+    width: 100%;
+}
+
+/* === BUTTON & INPUT STYLES === */
+button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input[type="text"],
+input[type="password"],
+select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: #f9fafb;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.2);
+}
+
+.input-group {
+  margin-bottom: 1.25rem;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* === MESSAGE & STATUS STYLES === */
+.error-message {
+  color: var(--error-color);
+  background-color: rgba(220, 38, 38, 0.1);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.success-message {
+  color: var(--success-color);
+  background-color: rgba(22, 163, 74, 0.1);
+  padding: 0.75rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+/* === LOGIN PAGE SPECIFIC STYLES === */
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  padding: 1rem;
+  width: 100%;
+}
+
+.auth-card {
+  max-width: 420px;
+  width: 100%;
+}
+
+.auth-title {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.auth-subtitle {
+  text-align: center;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+.auth-button {
+  width: 100%;
+  background-color: var(--primary-color);
+  color: white;
+  margin-top: 0.5rem;
+}
+
+.auth-button:hover {
+  background-color: var(--primary-hover);
+}
+
+.demo-credentials {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+.demo-credentials ul {
+    list-style-position: inside;
+    padding-left: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+
+/* === DASHBOARD SPECIFIC STYLES === */
+.dashboard-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: var(--card-background);
+  border-bottom: 1px solid var(--border-color);
+  width: 100%;
+}
+
+.dashboard-header h1 {
+  font-size: 1.5rem;
+}
+
+.logout-button {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.logout-button:hover {
+  background-color: #d1d5db;
+}
+
+.dashboard-main {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.dashboard-main.admin-layout {
+    grid-template-columns: 1fr;
+}
+
+
+@media (max-width: 900px) {
+    .dashboard-main {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+.process-card h2, .tasks-card h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.75rem;
+}
+
+/* File Input */
+.file-input-wrapper {
+    position: relative;
+    margin-bottom: 1rem;
+}
+#audio-file {
+    opacity: 0;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+.file-input-label {
+    display: block;
+    padding: 1rem;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    text-align: center;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+#audio-file:hover + .file-input-label,
+#audio-file:focus + .file-input-label {
+    border-color: var(--primary-color);
+    background-color: #f9fafb;
+}
+
+.process-button {
+  width: 100%;
+  background-color: var(--primary-color);
+  color: white;
+}
+.process-button:hover {
+    background-color: var(--primary-hover);
+}
+
+.upload-status {
+    margin-top: 1rem;
+    margin-bottom: 0;
+}
+
+
+/* Task List */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.status-indicator.status-to-do { background-color: var(--status-todo); }
+.status-indicator.status-verified { background-color: var(--status-verified); }
+
+.task-details {
+  flex-grow: 1;
+}
+
+.task-description {
+  font-weight: 500;
+}
+.task-due-date {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.task-status {
+  background-color: var(--background-color);
+  padding: 0.25rem 0.75rem;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.no-tasks-message {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 2rem;
+}
+
+/* === ADMIN VIEW STYLES ===
