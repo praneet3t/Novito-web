@@ -1,273 +1,474 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// frontend/src/App.jsx
+import React, { useEffect, useState } from "react";
 
-//=========== API Client ===========//
-const apiClient = {
-  async request(endpoint, { body, token, method = 'GET', ...customConfig }) {
-    const headers = {};
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    const config = { method, ...customConfig, headers: { ...headers, ...customConfig.headers } };
-    if (body) {
-      if (body instanceof FormData) {
-        config.body = body; // Don't set Content-Type for FormData, browser does it
-      } else {
-        config.headers['Content-Type'] = 'application/json';
-        config.body = JSON.stringify(body);
-      }
-    }
-    const response = await fetch(`http://127.0.0.1:8000${endpoint}`, config);
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-      return Promise.reject(errorData);
-    }
-    if (response.status !== 204) return response.json();
-  },
-};
+const API_BASE = ""; // If backend runs on different origin, set like "http://localhost:8000"
 
-//=========== Login Page Component ===========//
-function LoginPage({ onLogin }) {
-  const [username, setUsername] = useState('Admin');
-  const [password, setPassword] = useState('admin123');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+function useAuth() {
+  const [token, setToken] = useState(() => localStorage.getItem("ma_token") || "");
+  const [username, setUsername] = useState(() => localStorage.getItem("ma_username") || "");
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const val = localStorage.getItem("ma_is_admin");
+    return val === "true";
+  });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-    const formData = new URLSearchParams({ username, password });
-    try {
-      const data = await apiClient.request('/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData.toString(),
-      });
-      onLogin(data.access_token);
-    } catch (err) {
-      setError(err.detail || 'Failed to login.');
-    } finally {
-      setIsLoading(false);
-    }
+  useEffect(() => {
+    if (token) localStorage.setItem("ma_token", token);
+    else localStorage.removeItem("ma_token");
+  }, [token]);
+
+  useEffect(() => {
+    if (username) localStorage.setItem("ma_username", username);
+    else localStorage.removeItem("ma_username");
+  }, [username]);
+
+  useEffect(() => {
+    localStorage.setItem("ma_is_admin", isAdmin ? "true" : "false");
+  }, [isAdmin]);
+
+  const logout = () => {
+    setToken("");
+    setUsername("");
+    setIsAdmin(false);
+    localStorage.removeItem("ma_token");
+    localStorage.removeItem("ma_username");
+    localStorage.removeItem("ma_is_admin");
   };
 
+  return { token, setToken, username, setUsername, isAdmin, setIsAdmin, logout };
+}
+
+async function apiFetch(path, token, opts = {}) {
+  const headers = opts.headers ? { ...opts.headers } : {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(API_BASE + path, { ...opts, headers });
+  if (res.status === 401) throw new Error("Unauthorized");
+  return res;
+}
+
+export default function App() {
+  const auth = useAuth();
+  const { token, setToken, username, setUsername, isAdmin, setIsAdmin, logout } = auth;
+
+  const [view, setView] = useState("login");
+
+  useEffect(() => {
+    if (token) determineRole();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function determineRole() {
+    try {
+      const res = await apiFetch("/meetings", token, { method: "GET" });
+      if (res.ok) setIsAdmin(true);
+      else setIsAdmin(false);
+    } catch (e) {
+      setIsAdmin(false);
+    }
+  }
+
   return (
-    <div className="auth-container">
-      <div className="card">
-        <h1 className="auth-title">Meeting Agent</h1>
-        <form onSubmit={handleSubmit}>
-          <div className="input-group">
-            <label htmlFor="username">Username</label>
-            <input type="text" id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
-          </div>
-          <div className="input-group">
-            <label htmlFor="password">Password</label>
-            <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </div>
-          {error && <p className="error-message">{error}</p>}
-          <button type="submit" className="auth-button" disabled={isLoading}>
-            {isLoading ? 'Logging In...' : 'Login'}
-          </button>
-        </form>
-        <div className="demo-credentials">
-            <p><strong>Log in as:</strong> Admin (admin123) or Priya (priya123)</p>
+    <div className="app-root">
+      <header className="topbar">
+        <h1 className="brand">Meeting Agent</h1>
+        <div className="header-right">
+          {token ? (
+            <>
+              <div className="who">
+                {username}
+                {isAdmin ? " (Admin)" : ""}
+              </div>
+              <button className="btn small" onClick={() => { logout(); setView("login"); }}>
+                Logout
+              </button>
+            </>
+          ) : null}
         </div>
+      </header>
+
+      <main className="container">
+        {!token && (
+          <AuthForms
+            setToken={setToken}
+            setUsername={setUsername}
+            setView={setView}
+            setIsAdmin={setIsAdmin}
+          />
+        )}
+        {token && isAdmin && <AdminDashboard token={token} />}
+        {token && !isAdmin && <UserDashboard token={token} />}
+      </main>
+
+      <footer className="footer">Built with ❤️ — Meeting Agent</footer>
+    </div>
+  );
+}
+
+function AuthForms({ setToken, setUsername, setView, setIsAdmin }) {
+  const [loginUser, setLoginUser] = useState("");
+  const [loginPass, setLoginPass] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: loginUser, password: loginPass }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Login failed");
+      }
+      const data = await res.json();
+      setToken(data.access_token);
+      setUsername(loginUser);
+
+      try {
+        const m = await fetch("/meetings", { headers: { Authorization: `Bearer ${data.access_token}` } });
+        setIsAdmin(m.ok);
+      } catch (e) {
+        setIsAdmin(false);
+      }
+
+      setView("dashboard");
+    } catch (err) {
+      setError(err.message || "Login error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card auth-card">
+      <h2>Sign in</h2>
+      <form onSubmit={handleLogin} className="stack">
+        <label>
+          <div className="label-text">Username</div>
+          <input value={loginUser} onChange={(e) => setLoginUser(e.target.value)} required />
+        </label>
+        <label>
+          <div className="label-text">Password</div>
+          <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} required />
+        </label>
+        <div className="actions">
+          <button className="btn" type="submit" disabled={loading}>
+            {loading ? "Signing in..." : "Sign in"}
+          </button>
+        </div>
+        {error && <div className="error">{error}</div>}
+      </form>
+      <p className="muted small">
+        Seeded demo users: <strong>Priya</strong>, <strong>Arjun</strong>, <strong>Raghav</strong> (use seeded passwords) or <strong>Admin/admin123</strong>
+      </p>
+    </div>
+  );
+}
+
+// ---------------- Admin Dashboard ----------------
+function AdminDashboard({ token }) {
+  return (
+    <div className="grid two-col">
+      <div className="col">
+        <ProcessMeeting token={token} />
+        <ManualTask token={token} />
+      </div>
+      <div className="col">
+        <MeetingsList token={token} />
+        <AllTasks token={token} />
       </div>
     </div>
   );
 }
 
-//=========== User Dashboard Component ===========//
-function UserDashboard({ token }) {
-    const [tasks, setTasks] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+function ProcessMeeting({ token }) {
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [transcript, setTranscript] = useState("");
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("");
 
-    useEffect(() => {
-        apiClient.request('/users/me/tasks', { token })
-            .then(setTasks)
-            .finally(() => setIsLoading(false));
-    }, [token]);
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus("Processing...");
+    try {
+      const fd = new FormData();
+      fd.append("title", title);
+      if (date) fd.append("date", date);
+      if (transcript) fd.append("transcript", transcript);
+      if (file) fd.append("file", file);
 
-    if (isLoading) return <div className="card"><p>Loading your tasks...</p></div>;
-
-    return (
-        <div className="card tasks-card">
-            <h2>My Action Items</h2>
-            {tasks.length > 0 ? (
-                <div className="task-list">
-                    {tasks.map(task => (
-                        <div className="task-item" key={task.id}>
-                            <span className={`status-indicator status-${task.status.toLowerCase().replace(' ', '-')}`}></span>
-                            <div className="task-details">
-                                <p className="task-description">{task.description}</p>
-                                {task.due_date && <p className="task-due-date">Due: {task.due_date}</p>}
-                            </div>
-                            <span className="task-status">{task.status}</span>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <p className="no-tasks-message">You have no pending tasks. Great job!</p>
-            )}
-        </div>
-    );
-}
-
-//=========== Admin Dashboard Component ===========//
-function AdminDashboard({ token }) {
-    const [stats, setStats] = useState(null);
-    const [tasks, setTasks] = useState([]);
-    const [isLoadingTasks, setIsLoadingTasks] = useState(true);
-
-    // Form State
-    const [title, setTitle] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [uploadType, setUploadType] = useState('audio');
-    const [transcript, setTranscript] = useState('');
-    const [audioFile, setAudioFile] = useState(null);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-
-    const fetchAllData = useCallback(() => {
-        setIsLoadingTasks(true);
-        apiClient.request('/admin/stats', { token }).then(setStats);
-        apiClient.request('/admin/tasks', { token }).then(setTasks).finally(() => setIsLoadingTasks(false));
-    }, [token]);
-
-    useEffect(fetchAllData, [fetchAllData]);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        setError('');
-        setSuccess('');
-
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('date', date);
-
-        if (uploadType === 'audio' && audioFile) {
-            formData.append('audio_file', audioFile);
-        } else if (uploadType === 'transcript' && transcript) {
-            formData.append('transcript', transcript);
-        } else {
-            setError('Please provide either an audio file or a transcript.');
-            setIsProcessing(false);
-            return;
-        }
-
-        try {
-            const result = await apiClient.request('/admin/process-meeting/', { method: 'POST', token, body: formData });
-            setSuccess(`Meeting processed! Created ${result.created_tasks} new tasks.`);
-            setTitle(''); setDate(new Date().toISOString().split('T')[0]); setTranscript(''); setAudioFile(null);
-            e.target.reset(); // Reset the form fields
-            fetchAllData();
-        } catch (err) {
-            setError(err.detail || 'Failed to process meeting.');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-    
-    return (
-        <div className="admin-dashboard-grid">
-            {stats && (
-                <div className="stats-grid">
-                    <div className="card stat-card"><div className="stat-value">{stats.total_meetings}</div><div className="stat-label">Meetings</div></div>
-                    <div className="card stat-card"><div className="stat-value">{stats.total_tasks}</div><div className="stat-label">Total Tasks</div></div>
-                    <div className="card stat-card"><div className="stat-value">{stats.tasks_todo}</div><div className="stat-label">Pending</div></div>
-                    <div className="card stat-card"><div className="stat-value">{stats.tasks_completed}</div><div className="stat-label">Completed</div></div>
-                </div>
-            )}
-            
-            <div className="card">
-                <h2>Process New Meeting</h2>
-                <form onSubmit={handleSubmit}>
-                    <div className="form-grid">
-                        <div className="input-group">
-                            <label htmlFor="title">Meeting Title</label>
-                            <input type="text" id="title" value={title} onChange={(e) => setTitle(e.target.value)} required/>
-                        </div>
-                        <div className="input-group">
-                            <label htmlFor="date">Meeting Date</label>
-                            <input type="date" id="date" value={date} onChange={(e) => setDate(e.target.value)} required/>
-                        </div>
-                    </div>
-                    <div className="upload-toggle">
-                        <button type="button" onClick={() => setUploadType('audio')} className={`toggle-button ${uploadType === 'audio' ? 'active' : ''}`}>Upload Audio</button>
-                        <button type="button" onClick={() => setUploadType('transcript')} className={`toggle-button ${uploadType === 'transcript' ? 'active' : ''}`}>Paste Transcript</button>
-                    </div>
-
-                    {uploadType === 'audio' ? (
-                        <div className="input-group">
-                            <label htmlFor="audio-file" className="file-input-label">{audioFile ? audioFile.name : 'Click to select an audio file'}</label>
-                            <input type="file" id="audio-file" onChange={(e) => setAudioFile(e.target.files[0])} accept="audio/*"/>
-                        </div>
-                    ) : (
-                        <div className="input-group">
-                             <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} placeholder="Paste the full meeting transcript here..."></textarea>
-                        </div>
-                    )}
-                    
-                    {error && <p className="error-message">{error}</p>}
-                    {success && <p className="success-message">{success}</p>}
-                    
-                    <button type="submit" className="auth-button full-width" disabled={isProcessing}>{isProcessing ? 'Processing...' : 'Process Meeting'}</button>
-                </form>
-            </div>
-        </div>
-    );
-}
-
-
-//=========== Main App Component ===========//
-function App() {
-  const [token, setToken] = useState(localStorage.getItem('authToken'));
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    setToken(null);
-    setUser(null);
-  };
-
-  useEffect(() => {
-    if (!token) {
-        setIsLoading(false);
-        return;
+      const res = await fetch("/meetings/process", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || "Processing failed");
+      }
+      const mt = await res.json();
+      setStatus("Meeting processed: " + (mt.title || ""));
+      setTitle("");
+      setTranscript("");
+      setFile(null);
+      setDate("");
+      window.dispatchEvent(new Event("ma_refresh"));
+    } catch (err) {
+      setStatus(err.message || "Error");
     }
-    apiClient.request('/users/me', { token })
-        .then(setUser)
-        .catch(() => handleLogout()) // Log out if token is invalid
-        .finally(() => setIsLoading(false));
-  }, [token]);
-  
-  const handleLogin = (newToken) => {
-    localStorage.setItem('authToken', newToken);
-    setToken(newToken);
-  };
-  
-  if (isLoading) return <div className="loading-container"><p>Loading...</p></div>;
+  }
 
   return (
-    <div className="app-container">
-      {!token || !user ? (
-        <LoginPage onLogin={handleLogin} />
-      ) : (
-        <div className="dashboard-container">
-            <header className="dashboard-header">
-                <h1>Welcome, {user.username}! {user.is_admin && <span style={{color: 'var(--primary-color)'}}>(Admin)</span>}</h1>
-                <button onClick={handleLogout} className="logout-button">Logout</button>
-            </header>
-            <main className="dashboard-main">
-                {user.is_admin ? <AdminDashboard token={token} /> : <UserDashboard token={token} />}
-            </main>
+    <div className="card">
+      <h3>Process Meeting</h3>
+      <form onSubmit={handleSubmit} className="stack">
+        <label>
+          <div className="label-text">Title</div>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+        </label>
+        <label>
+          <div className="label-text">Date (ISO)</div>
+          <input value={date} onChange={(e) => setDate(e.target.value)} placeholder="2025-10-03T12:00:00" />
+        </label>
+        <label>
+          <div className="label-text">Transcript (paste raw text)</div>
+          <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={6} />
+        </label>
+        <label>
+          <div className="label-text">Or upload audio file</div>
+          <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files[0])} />
+        </label>
+        <div className="actions">
+          <button className="btn" type="submit">Process</button>
+        </div>
+        {status && <div className="muted">{status}</div>}
+      </form>
+    </div>
+  );
+}
+
+function ManualTask({ token }) {
+  const [desc, setDesc] = useState("");
+  const [meetingId, setMeetingId] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [due, setDue] = useState("");
+  const [status, setStatus] = useState("");
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setStatus("Creating...");
+    try {
+      const res = await fetch("/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ description: desc, meeting_id: Number(meetingId), assignee_username: assignee, due_date: due || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed");
+      }
+      const t = await res.json();
+      setStatus("Task created: " + t.id);
+      setDesc("");
+      setMeetingId("");
+      setAssignee("");
+      setDue("");
+      window.dispatchEvent(new Event("ma_refresh"));
+    } catch (err) {
+      setStatus(err.message || "Error");
+    }
+  }
+
+  return (
+    <div className="card">
+      <h3>Create Task (Admin)</h3>
+      <form onSubmit={handleCreate} className="stack">
+        <label>
+          <div className="label-text">Description</div>
+          <input value={desc} onChange={(e) => setDesc(e.target.value)} required />
+        </label>
+        <label>
+          <div className="label-text">Meeting ID</div>
+          <input value={meetingId} onChange={(e) => setMeetingId(e.target.value)} required />
+        </label>
+        <label>
+          <div className="label-text">Assignee username</div>
+          <input value={assignee} onChange={(e) => setAssignee(e.target.value)} required />
+        </label>
+        <label>
+          <div className="label-text">Due date (optional ISO)</div>
+          <input value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
+        <div className="actions">
+          <button className="btn" type="submit">Create</button>
+        </div>
+        {status && <div className="muted">{status}</div>}
+      </form>
+    </div>
+  );
+}
+
+function MeetingsList({ token }) {
+  const [meetings, setMeetings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/meetings", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json();
+      setMeetings(data);
+    } catch (e) {
+      setMeetings([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const h = () => load();
+    window.addEventListener("ma_refresh", h);
+    return () => window.removeEventListener("ma_refresh", h);
+  }, [token]);
+
+  return (
+    <div className="card">
+      <h3>Meetings</h3>
+      {loading ? <div className="muted">Loading...</div> : (
+        <div className="list">
+          {meetings.length === 0 && <div className="muted">No meetings yet.</div>}
+          {meetings.map(m => (
+            <div key={m.id} className="item">
+              <div className="item-head">
+                <strong>{m.title}</strong>
+                <div className="muted small">{m.date}</div>
+              </div>
+              {m.summary_minutes && <p className="summary">{m.summary_minutes}</p>}
+              <div className="meta">Meeting ID: {m.id} • Processed by: {m.processed_by_id || "N/A"}</div>
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-export default App;
+function AllTasks({ token }) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/tasks", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setTasks(data);
+    } catch (e) {
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const h = () => load();
+    window.addEventListener("ma_refresh", h);
+    return () => window.removeEventListener("ma_refresh", h);
+  }, [token]);
+
+  return (
+    <div className="card">
+      <h3>All Tasks</h3>
+      {loading ? <div className="muted">Loading...</div> : (
+        <div className="list">
+          {tasks.length === 0 && <div className="muted">No tasks.</div>}
+          {tasks.map(t => (
+            <div key={t.id} className="item">
+              <div className="row">
+                <div><strong>{t.description}</strong></div>
+                <div className="muted">Status: {t.status}</div>
+              </div>
+              <div className="muted small">Meeting: {t.meeting_id} • Assignee: {t.assignee_id}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------- User Dashboard ----------------
+function UserDashboard({ token }) {
+  return (
+    <div className="grid single">
+      <MyTasks token={token} />
+    </div>
+  );
+}
+
+function MyTasks({ token }) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/tasks/my", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setTasks(data);
+    } catch (e) {
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const h = () => load();
+    window.addEventListener("ma_refresh", h);
+    return () => window.removeEventListener("ma_refresh", h);
+  }, [token]);
+
+  async function markDone(id) {
+    try {
+      const res = await fetch(`/tasks/${id}/complete`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed");
+      window.dispatchEvent(new Event("ma_refresh"));
+    } catch (e) {
+      alert("Could not mark complete: " + e.message);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h3>My Tasks</h3>
+      {loading ? <div className="muted">Loading...</div> : (
+        <div className="list">
+          {tasks.length === 0 && <div className="muted">No tasks assigned to you.</div>}
+          {tasks.map(t => (
+            <div key={t.id} className="item">
+              <div className="row">
+                <div><strong>{t.description}</strong></div>
+                <div className="muted">{t.due_date || "No due date"}</div>
+              </div>
+              <div className="meta">Meeting: {t.meeting_id}</div>
+              <div className="actions">
+                {t.status !== "Done" ? <button className="btn small" onClick={() => markDone(t.id)}>Mark Done</button> : <span className="muted">Completed</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
