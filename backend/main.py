@@ -79,9 +79,21 @@ class AdminDashboardStats(BaseModel):
     tasks_completed: int
 
 # --- Authentication ---
-# (auth_dependency and login endpoint remain the same)
+
 async def auth_dependency(request: Request, db: Session = Depends(get_db)) -> User:
-    # ... (code is unchanged)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    
+    parts = auth_header.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth header format")
+    
+    username = parts[1]
+    user = db.query(User).filter(User.username.ilike(username)).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    return user
     
 async def admin_dependency(current_user: User = Depends(auth_dependency)) -> User:
     if not current_user.is_admin:
@@ -90,19 +102,40 @@ async def admin_dependency(current_user: User = Depends(auth_dependency)) -> Use
 
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # ... (code is unchanged)
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or user.password != form_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+        )
+    return Token(access_token=user.username)
 
 
 # --- Gemini AI Integration ---
-# (These functions remain largely the same)
-def _get_gemini_prompt():
-    # ... (code is unchanged)
 
-def _parse_gemini_response(response_text: str):
-    # ... (code is unchanged)
+def _get_gemini_prompt() -> str:
+    return (
+        "You are an expert assistant that extracts a concise Minutes of Meeting and all action items from a meeting transcript. "
+        "Return STRICT JSON with two keys: 'minutes' (string) and 'tasks' (array). "
+        "Each object in the 'tasks' array must have these keys: "
+        "'description' (string), 'assignee' (string, just the person's first name), and 'due_date' (optional string). "
+        "Do not include any commentary or prose outside of the main JSON object."
+    )
+
+def _parse_gemini_response(response_text: str) -> Dict:
+    text = response_text.strip()
+    if text.startswith("```") and text.endswith("```"):
+        text = text.strip("`\n ")
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="AI response was not valid JSON.")
 
 
 # --- Core Logic ---
+
 def _process_and_save(extracted_data: Dict, meeting: Meeting, db: Session) -> int:
     """Saves tasks from Gemini's response to the database, linked to a meeting."""
     meeting.summary_minutes = extracted_data.get("minutes", "No summary generated.")
@@ -201,10 +234,10 @@ async def get_admin_stats(admin_user: User = Depends(admin_dependency), db: Sess
     tasks_completed = db.query(func.count(Task.id)).filter(Task.status.in_(["Completed", "Verified"])).scalar()
     
     return AdminDashboardStats(
-        total_meetings=total_meetings,
-        total_tasks=total_tasks,
-        tasks_todo=tasks_todo,
-        tasks_completed=tasks_completed,
+        total_meetings=total_meetings or 0,
+        total_tasks=total_tasks or 0,
+        tasks_todo=tasks_todo or 0,
+        tasks_completed=tasks_completed or 0,
     )
 
 @app.get("/admin/tasks", response_model=List[TaskOut], summary="[Admin] List All Tasks")
