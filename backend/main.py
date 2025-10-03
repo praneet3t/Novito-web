@@ -204,7 +204,7 @@ async def process_meeting(
 
     source_content = transcript
     if audio_file:
-        model = genai.GenerativeModel("gemini-1.5-flash-latest")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         with tempfile.NamedTemporaryFile(delete=False, suffix=audio_file.filename) as temp:
             shutil.copyfileobj(audio_file.file, temp)
             temp_path = temp.name
