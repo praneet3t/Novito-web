@@ -10,7 +10,10 @@ from sqlalchemy import (
     Text,
     DateTime,
     ForeignKey,
+    Float,
+    Enum as SQLEnum,
 )
+import enum
 from sqlalchemy.orm import (
     declarative_base,
     relationship,
@@ -67,6 +70,12 @@ class Meeting(Base):
     tasks: Mapped[List["Task"]] = relationship("Task", back_populates="meeting", cascade="all, delete-orphan")
 
 
+class EffortTag(enum.Enum):
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+
+
 class Task(Base):
     __tablename__ = "tasks"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -74,12 +83,61 @@ class Task(Base):
     due_date: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(64), nullable=False, default="To Do")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # New agile fields
+    priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    effort_tag: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    timestamp_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     assignee_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), nullable=False)
+    bundle_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bundle_groups.id"), nullable=True)
+    workcycle_id: Mapped[Optional[int]] = mapped_column(ForeignKey("work_cycles.id"), nullable=True)
 
     assignee: Mapped["User"] = relationship("User", back_populates="tasks")
     meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="tasks")
+    bundle: Mapped[Optional["BundleGroup"]] = relationship("BundleGroup", back_populates="tasks")
+    workcycle: Mapped[Optional["WorkCycle"]] = relationship("WorkCycle", back_populates="tasks")
+
+
+class WorkCycle(Base):
+    __tablename__ = "work_cycles"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    start_date: Mapped[str] = mapped_column(String(64), nullable=False)
+    end_date: Mapped[str] = mapped_column(String(64), nullable=False)
+    goal: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    owner: Mapped["User"] = relationship("User")
+    tasks: Mapped[List["Task"]] = relationship("Task", back_populates="workcycle")
+    snapshots: Mapped[List["ProgressSnapshot"]] = relationship("ProgressSnapshot", back_populates="workcycle", cascade="all, delete-orphan")
+
+
+class BundleGroup(Base):
+    __tablename__ = "bundle_groups"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    owner: Mapped["User"] = relationship("User")
+    tasks: Mapped[List["Task"]] = relationship("Task", back_populates="bundle")
+
+
+class ProgressSnapshot(Base):
+    __tablename__ = "progress_snapshots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workcycle_id: Mapped[int] = mapped_column(ForeignKey("work_cycles.id"), nullable=False)
+    snapshot_date: Mapped[str] = mapped_column(String(64), nullable=False)
+    remaining_effort: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    workcycle: Mapped["WorkCycle"] = relationship("WorkCycle", back_populates="snapshots")
 
 
 # --- Utility functions ---

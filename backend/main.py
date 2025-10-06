@@ -16,6 +16,9 @@ from backend.database import (
     Token,
     Meeting,
     Task,
+    WorkCycle,
+    BundleGroup,
+    ProgressSnapshot,
 )
 
 # Constants
@@ -67,6 +70,29 @@ class TaskRequest(BaseModel):
     meeting_id: int
     assignee_username: str
     due_date: Optional[str] = None
+    effort_tag: Optional[str] = None
+    priority: int = 0
+
+
+class TaskUpdateRequest(BaseModel):
+    status: Optional[str] = None
+    priority: Optional[int] = None
+    effort_tag: Optional[str] = None
+    bundle_id: Optional[int] = None
+    workcycle_id: Optional[int] = None
+    is_approved: Optional[bool] = None
+
+
+class WorkCycleRequest(BaseModel):
+    name: str
+    start_date: str
+    end_date: str
+    goal: Optional[str] = None
+
+
+class BundleGroupRequest(BaseModel):
+    title: str
+    description: Optional[str] = None
 
 class LoginResponse(BaseModel):
     token: str
@@ -98,6 +124,45 @@ class TaskOut(BaseModel):
     status: str
     meeting_id: int
     assignee_id: int
+    priority: int = 0
+    effort_tag: Optional[str] = None
+    confidence: float = 1.0
+    timestamp_seconds: Optional[int] = None
+    is_approved: bool = False
+    bundle_id: Optional[int] = None
+    workcycle_id: Optional[int] = None
+    
+    class Config:
+        orm_mode = True
+
+
+class WorkCycleOut(BaseModel):
+    id: int
+    name: str
+    start_date: str
+    end_date: str
+    goal: Optional[str]
+    owner_id: int
+    
+    class Config:
+        orm_mode = True
+
+
+class BundleGroupOut(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    owner_id: int
+    
+    class Config:
+        orm_mode = True
+
+
+class ProgressSnapshotOut(BaseModel):
+    id: int
+    workcycle_id: int
+    snapshot_date: str
+    remaining_effort: float
     
     class Config:
         orm_mode = True
@@ -280,6 +345,119 @@ def complete_task(task_id: int, current_user: User = Depends(get_current_user), 
     db.commit()
     db.refresh(task)
     return task
+
+# Priority Queue endpoints
+@app.get("/tasks/queue", response_model=List[TaskOut])
+def priority_queue(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Task).filter(Task.is_approved == True, Task.workcycle_id == None).order_by(Task.priority.desc(), Task.created_at.desc()).all()
+
+
+@app.get("/tasks/review", response_model=List[TaskOut])
+def review_queue(current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    return db.query(Task).filter(Task.is_approved == False).order_by(Task.confidence.desc(), Task.created_at.desc()).all()
+
+
+@app.patch("/tasks/{task_id}", response_model=TaskOut)
+def update_task(task_id: int, request: TaskUpdateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if request.status is not None:
+        task.status = request.status
+    if request.priority is not None:
+        task.priority = request.priority
+    if request.effort_tag is not None:
+        task.effort_tag = request.effort_tag
+    if request.bundle_id is not None:
+        task.bundle_id = request.bundle_id
+    if request.workcycle_id is not None:
+        task.workcycle_id = request.workcycle_id
+    if request.is_approved is not None:
+        task.is_approved = request.is_approved
+    
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+# Work Cycle endpoints
+@app.post("/workcycles", response_model=WorkCycleOut, status_code=201)
+def create_workcycle(request: WorkCycleRequest, current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    cycle = WorkCycle(
+        name=request.name,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        goal=request.goal,
+        owner_id=current_user.id
+    )
+    db.add(cycle)
+    db.commit()
+    db.refresh(cycle)
+    return cycle
+
+
+@app.get("/workcycles", response_model=List[WorkCycleOut])
+def list_workcycles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(WorkCycle).order_by(WorkCycle.created_at.desc()).all()
+
+
+@app.get("/workcycles/{cycle_id}/tasks", response_model=List[TaskOut])
+def workcycle_tasks(cycle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Task).filter(Task.workcycle_id == cycle_id).order_by(Task.priority.desc()).all()
+
+
+@app.get("/workcycles/{cycle_id}/snapshot")
+def workcycle_snapshot(cycle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cycle = db.query(WorkCycle).filter(WorkCycle.id == cycle_id).first()
+    if not cycle:
+        raise HTTPException(status_code=404, detail="Work cycle not found")
+    
+    tasks = db.query(Task).filter(Task.workcycle_id == cycle_id).all()
+    
+    effort_map = {"small": 1, "medium": 3, "large": 5}
+    total_effort = sum(effort_map.get(t.effort_tag, 0) for t in tasks)
+    remaining_effort = sum(effort_map.get(t.effort_tag, 0) for t in tasks if t.status != "Done")
+    
+    blockers = [t for t in tasks if "block" in t.description.lower() or "stuck" in t.description.lower()]
+    doing = [t for t in tasks if t.status == "Doing"]
+    upcoming = [t for t in tasks if t.due_date and t.status not in ["Done", "Doing"]]
+    
+    return {
+        "cycle_name": cycle.name,
+        "total_items": len(tasks),
+        "completed_items": len([t for t in tasks if t.status == "Done"]),
+        "total_effort": total_effort,
+        "remaining_effort": remaining_effort,
+        "blockers": [{"id": t.id, "description": t.description} for t in blockers[:3]],
+        "doing": [{"id": t.id, "description": t.description} for t in doing[:3]],
+        "upcoming": [{"id": t.id, "due_date": t.due_date} for t in upcoming[:3]]
+    }
+
+
+# Bundle Group endpoints
+@app.post("/bundles", response_model=BundleGroupOut, status_code=201)
+def create_bundle(request: BundleGroupRequest, current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    bundle = BundleGroup(
+        title=request.title,
+        description=request.description,
+        owner_id=current_user.id
+    )
+    db.add(bundle)
+    db.commit()
+    db.refresh(bundle)
+    return bundle
+
+
+@app.get("/bundles", response_model=List[BundleGroupOut])
+def list_bundles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(BundleGroup).order_by(BundleGroup.created_at.desc()).all()
+
+
+@app.get("/bundles/{bundle_id}/tasks", response_model=List[TaskOut])
+def bundle_tasks(bundle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Task).filter(Task.bundle_id == bundle_id).all()
+
 
 @app.get("/health")
 def health():
