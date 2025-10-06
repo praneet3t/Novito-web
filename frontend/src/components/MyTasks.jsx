@@ -4,6 +4,8 @@ import { api } from "../utils/api";
 export default function MyTasks({ token }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [blockerReason, setBlockerReason] = useState("");
 
   async function load() {
     setLoading(true);
@@ -23,11 +25,6 @@ export default function MyTasks({ token }) {
     window.addEventListener("ma_refresh", h);
     return () => window.removeEventListener("ma_refresh", h);
   }, [token]);
-
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [blockerReason, setBlockerReason] = useState("");
 
   async function updateProgress(id, prog) {
     try {
@@ -62,68 +59,69 @@ export default function MyTasks({ token }) {
   }
 
   return (
-    <div className="card">
-      <h3>My Tasks</h3>
-      {loading ? (
-        <div className="muted">Loading...</div>
-      ) : (
-        <div className="list">
-          {tasks.length === 0 && <div className="muted">No tasks assigned</div>}
-          {tasks.map((t) => (
-            <div className="item" key={t.id}>
-              <div className="row">
-                <div>
-                  <strong>{t.description}</strong>
-                  {t.is_blocked && <span className="badge status-blocked" style={{marginLeft: '8px'}}>🚫 Blocked</span>}
-                </div>
-                {t.due_date && (() => {
-                  const status = getDeadlineStatus(t.due_date);
-                  return status ? <span className={`deadline-indicator ${status.class}`}>{status.icon} {status.text}</span> : null;
-                })()}
-              </div>
-              
-              <div className="row">
-                <div className="meta">
-                  Priority: {t.priority} • Status: {t.status}
-                </div>
-                {t.effort_tag && <span className={`badge ${t.effort_tag}`}>{t.effort_tag}</span>}
-              </div>
-
-              {t.is_blocked && t.blocker_reason && (
-                <div className="alert danger" style={{marginTop: '8px', padding: '8px'}}>
-                  <span>🚫</span>
-                  <span>{t.blocker_reason}</span>
-                </div>
-              )}
-
-              {t.status !== "Done" && !t.is_blocked && (
-                <div style={{marginTop: '12px'}}>
-                  <div className="muted small">Progress: {t.progress}%</div>
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{width: `${t.progress}%`}}></div>
+    <>
+      <div className="card">
+        <h3>My Tasks</h3>
+        {loading ? (
+          <div className="muted">Loading...</div>
+        ) : (
+          <div className="list">
+            {tasks.length === 0 && <div className="muted">No tasks assigned</div>}
+            {tasks.map((t) => (
+              <div className="item" key={t.id}>
+                <div className="row">
+                  <div>
+                    <strong>{t.description}</strong>
+                    {t.is_blocked && <span className="badge status-blocked" style={{marginLeft: '8px'}}>🚫 Blocked</span>}
                   </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="100" 
-                    value={t.progress} 
-                    onChange={(e) => updateProgress(t.id, Number(e.target.value))}
-                    style={{width: '100%', marginTop: '8px'}}
-                  />
+                  {t.due_date && (() => {
+                    const status = getDeadlineStatus(t.due_date);
+                    return status ? <span className={`deadline-indicator ${status.class}`}>{status.icon} {status.text}</span> : null;
+                  })()}
                 </div>
-              )}
+                
+                <div className="row">
+                  <div className="meta">
+                    Priority: {t.priority} • Status: {t.status}
+                  </div>
+                  {t.effort_tag && <span className={`badge ${t.effort_tag}`}>{t.effort_tag}</span>}
+                </div>
 
-              <div className="actions">
-                {t.status !== "Done" && !t.is_blocked && (
-                  <button className="btn small danger" onClick={() => setSelectedTask(t)}>Report Blocker</button>
+                {t.is_blocked && t.blocker_reason && (
+                  <div className="alert danger" style={{marginTop: '8px', padding: '8px'}}>
+                    <span>🚫</span>
+                    <span>{t.blocker_reason}</span>
+                  </div>
                 )}
-                {t.status === "Done" && <span className="badge status-done">✓ Completed</span>}
+
+                {t.status !== "Done" && !t.is_blocked && (
+                  <div style={{marginTop: '12px'}}>
+                    <div className="muted small">Progress: {t.progress}%</div>
+                    <div className="progress-bar">
+                      <div className="progress-fill" style={{width: `${t.progress}%`}}></div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={t.progress} 
+                      onChange={(e) => updateProgress(t.id, Number(e.target.value))}
+                      style={{width: '100%', marginTop: '8px'}}
+                    />
+                  </div>
+                )}
+
+                <div className="actions">
+                  {t.status !== "Done" && !t.is_blocked && (
+                    <button className="btn small danger" onClick={() => setSelectedTask(t)}>Report Blocker</button>
+                  )}
+                  {t.status === "Done" && <span className="badge status-done">✓ Completed</span>}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {selectedTask && (
         <div className="modal-overlay" onClick={() => setSelectedTask(null)}>
