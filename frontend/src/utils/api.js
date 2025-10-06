@@ -10,6 +10,17 @@ export const api = {
     return res.json();
   },
 
+  analytics: {
+    briefing: (token) =>
+      api.request("/analytics/briefing", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    productivity: (token, days = 7) =>
+      api.request(`/analytics/productivity?days=${days}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+  },
+
   auth: {
     login: (username, password) =>
       api.request("/auth/login", {

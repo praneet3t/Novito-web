@@ -10,7 +10,7 @@ export default function App() {
   return (
     <div className="app-root">
       <header className="topbar">
-        <h1 className="brand">Meeting Agent</h1>
+        <h1 className="brand"><span className="brand-icon">🤖</span>Meeting Agent</h1>
         <div className="header-right">
           {token && (
             <>
@@ -29,7 +29,7 @@ export default function App() {
         {token && !isAdmin && <UserDashboard token={token} />}
       </main>
 
-      <footer className="footer">Meeting Agent — Agile Task Management</footer>
+      <footer className="footer">Meeting Agent — AI-Powered Task Management © 2024</footer>
     </div>
   );
 }
