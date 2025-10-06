@@ -1,13 +1,17 @@
 from datetime import datetime
 from typing import Optional, List
+import os
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Body
+
+load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
 
-from backend.database import (
+from database import (
     init_db,
     get_db,
     get_or_create_user,
@@ -20,6 +24,7 @@ from backend.database import (
     BundleGroup,
     ProgressSnapshot,
 )
+from gemini_service import extract_tasks_from_transcript, generate_meeting_summary
 
 # Constants
 DEFAULT_PASSWORD = "changeme"
@@ -201,31 +206,31 @@ def create_summary(text: str) -> str:
 
 def extract_tasks_from_text(db: Session, text: str, meeting_id: int) -> List[Task]:
     tasks = []
-    for line in text.splitlines():
-        line = line.strip()
-        if line.upper().startswith(TASK_PREFIX):
-            payload = line[len(TASK_PREFIX):].strip()
-            parts = [p.strip() for p in payload.split("|")]
-            
-            assignee_name = parts[0] if parts and parts[0] else "unassigned"
-            description = parts[1] if len(parts) > 1 else "Follow up"
-            due_date = parts[2] if len(parts) > 2 else None
-            
-            assignee = find_user_by_username(db, assignee_name)
-            if not assignee:
-                assignee = get_or_create_user(db, assignee_name, DEFAULT_PASSWORD, False)
-            
-            task = Task(
-                description=description,
-                due_date=due_date,
-                status="To Do",
-                meeting_id=meeting_id,
-                assignee_id=assignee.id
-            )
-            db.add(task)
-            db.commit()
-            db.refresh(task)
-            tasks.append(task)
+    
+    # Use Gemini AI to extract tasks
+    ai_tasks = extract_tasks_from_transcript(text)
+    
+    for task_data in ai_tasks:
+        assignee_name = task_data.get("assignee", "unassigned")
+        assignee = find_user_by_username(db, assignee_name)
+        if not assignee:
+            assignee = get_or_create_user(db, assignee_name, DEFAULT_PASSWORD, False)
+        
+        task = Task(
+            description=task_data.get("description", "Follow up"),
+            due_date=task_data.get("due_date"),
+            status="To Do",
+            meeting_id=meeting_id,
+            assignee_id=assignee.id,
+            priority=task_data.get("priority", 5),
+            effort_tag=task_data.get("effort_tag"),
+            confidence=task_data.get("confidence", 1.0),
+            is_approved=False
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        tasks.append(task)
     
     return tasks
 
@@ -274,7 +279,7 @@ async def process_meeting(
         except Exception:
             effective_text = "[Audio uploaded — processing failed]"
     
-    summary = create_summary(effective_text)
+    summary = generate_meeting_summary(effective_text) if effective_text else "No summary"
     meeting_date = date or datetime.utcnow().isoformat()
     
     meeting = Meeting(

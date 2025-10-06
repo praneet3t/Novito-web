@@ -49,8 +49,11 @@ export default function MyTasks({ token }) {
                 </div>
                 <div className="muted">{t.due_date || "No due"}</div>
               </div>
-              <div className="meta">
-                Priority: {t.priority} • Effort: {t.effort_tag || "N/A"}
+              <div className="row">
+                <div className="meta">
+                  Priority: {t.priority} • Status: {t.status}
+                </div>
+                {t.effort_tag && <span className={`badge ${t.effort_tag}`}>{t.effort_tag}</span>}
               </div>
               <div className="actions">
                 {t.status !== "Done" ? (

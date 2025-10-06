@@ -36,11 +36,12 @@ export default function PriorityQueue({ token }) {
             <div className="item" key={t.id}>
               <div className="row">
                 <div>
-                  <strong>#{t.priority}</strong> {t.description}
+                  <span className="badge priority">P{t.priority}</span>
+                  <strong style={{marginLeft: '8px'}}>{t.description}</strong>
                 </div>
-                <div className="badge">{t.effort_tag || "?"}</div>
+                <span className={`badge ${t.effort_tag || 'medium'}`}>{t.effort_tag || "?"}</span>
               </div>
-              <div className="muted small">Status: {t.status}</div>
+              <div className="muted small">Status: {t.status} • Due: {t.due_date || 'No deadline'}</div>
             </div>
           ))}
         </div>

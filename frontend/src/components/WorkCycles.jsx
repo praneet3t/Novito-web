@@ -106,14 +106,21 @@ export default function WorkCycles({ token }) {
         {snapshot && selected && (
           <div className="snapshot">
             <h4>{snapshot.cycle_name}</h4>
-            <div className="muted">
-              Items: {snapshot.completed_items}/{snapshot.total_items} • Effort: {snapshot.remaining_effort}/{snapshot.total_effort}
+            <div className="stat-grid">
+              <div className="stat-card">
+                <div className="stat-value">{snapshot.completed_items}/{snapshot.total_items}</div>
+                <div className="stat-label">Tasks Completed</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{snapshot.remaining_effort}/{snapshot.total_effort}</div>
+                <div className="stat-label">Effort Points</div>
+              </div>
             </div>
             {snapshot.blockers.length > 0 && (
-              <div>
-                <strong>Blockers:</strong>
+              <div style={{marginTop: '16px'}}>
+                <strong style={{color: 'var(--danger)'}}>Blockers:</strong>
                 {snapshot.blockers.map((b) => (
-                  <div key={b.id} className="muted small">- {b.description}</div>
+                  <div key={b.id} className="muted small" style={{marginTop: '8px'}}>• {b.description}</div>
                 ))}
               </div>
             )}

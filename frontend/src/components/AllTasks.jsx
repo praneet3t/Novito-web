@@ -38,10 +38,10 @@ export default function AllTasks({ token }) {
                 <div>
                   <strong>{t.description}</strong>
                 </div>
-                <div className="muted">Status: {t.status}</div>
+                <span className={`badge ${t.effort_tag || 'medium'}`}>{t.effort_tag || "N/A"}</span>
               </div>
               <div className="muted small">
-                Priority: {t.priority} • Effort: {t.effort_tag || "N/A"} • Approved: {t.is_approved ? "✓" : "✗"}
+                Priority: {t.priority} • Status: {t.status} • {t.is_approved ? '✓ Approved' : '✗ Pending'}
               </div>
             </div>
           ))}
