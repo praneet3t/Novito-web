@@ -84,12 +84,18 @@ class Task(Base):
     status: Mapped[str] = mapped_column(String(64), nullable=False, default="To Do")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     
-    # New agile fields
+    # Agile fields
     priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     effort_tag: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     timestamp_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Tracking fields
+    progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    blocker_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_updated: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     assignee_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), nullable=False)
