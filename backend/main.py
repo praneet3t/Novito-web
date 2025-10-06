@@ -25,6 +25,7 @@ from database import (
     ProgressSnapshot,
 )
 from gemini_service import extract_tasks_from_transcript, generate_meeting_summary
+from analytics_service import get_daily_briefing, get_productivity_analytics, detect_blockers_from_transcript
 
 # Constants
 DEFAULT_PASSWORD = "changeme"
@@ -86,6 +87,9 @@ class TaskUpdateRequest(BaseModel):
     bundle_id: Optional[int] = None
     workcycle_id: Optional[int] = None
     is_approved: Optional[bool] = None
+    progress: Optional[int] = None
+    is_blocked: Optional[bool] = None
+    blocker_reason: Optional[str] = None
 
 
 class WorkCycleRequest(BaseModel):
@@ -136,6 +140,9 @@ class TaskOut(BaseModel):
     is_approved: bool = False
     bundle_id: Optional[int] = None
     workcycle_id: Optional[int] = None
+    progress: int = 0
+    is_blocked: bool = False
+    blocker_reason: Optional[str] = None
     
     class Config:
         orm_mode = True
@@ -380,6 +387,14 @@ def update_task(task_id: int, request: TaskUpdateRequest, current_user: User = D
         task.workcycle_id = request.workcycle_id
     if request.is_approved is not None:
         task.is_approved = request.is_approved
+    if request.progress is not None:
+        task.progress = request.progress
+        if request.progress == 100:
+            task.status = "Done"
+    if request.is_blocked is not None:
+        task.is_blocked = request.is_blocked
+    if request.blocker_reason is not None:
+        task.blocker_reason = request.blocker_reason
     
     db.commit()
     db.refresh(task)
@@ -463,6 +478,14 @@ def list_bundles(current_user: User = Depends(get_current_user), db: Session = D
 def bundle_tasks(bundle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Task).filter(Task.bundle_id == bundle_id).all()
 
+
+@app.get("/analytics/briefing")
+def daily_briefing(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return get_daily_briefing(db)
+
+@app.get("/analytics/productivity")
+def productivity_analytics(days: int = 7, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return get_productivity_analytics(db, days)
 
 @app.get("/health")
 def health():
