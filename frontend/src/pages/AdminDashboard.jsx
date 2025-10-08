@@ -13,6 +13,7 @@ import VerificationQueue from "../components/VerificationQueue";
 import QuickCapture from "../components/QuickCapture";
 import CaptureInbox from "../components/CaptureInbox";
 import NotificationPanel from "../components/NotificationPanel";
+import ManagerApproval from "../components/ManagerApproval";
 
 export default function AdminDashboard({ token }) {
   const [tab, setTab] = useState("dashboard");
@@ -29,12 +30,7 @@ export default function AdminDashboard({ token }) {
         <button className={tab === "cycles" ? "active" : ""} onClick={() => setTab("cycles")}>Work Cycles</button>
       </div>
 
-      {tab === "dashboard" && (
-        <div className="grid single">
-          <DailyBriefing token={token} />
-          <ProductivityAnalytics token={token} />
-        </div>
-      )}
+
 
       {tab === "overview" && (
         <div className="grid two-col">
@@ -57,6 +53,16 @@ export default function AdminDashboard({ token }) {
         <div className="grid two-col">
           <CaptureInbox token={token} />
           <QuickCapture token={token} />
+        </div>
+      )}
+
+      {tab === "dashboard" && (
+        <div className="grid single">
+          <DailyBriefing token={token} />
+          <div className="grid two-col">
+            <ProductivityAnalytics token={token} />
+            <ManagerApproval token={token} />
+          </div>
         </div>
       )}
     </>

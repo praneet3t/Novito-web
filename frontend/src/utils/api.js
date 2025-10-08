@@ -44,6 +44,11 @@ export const api = {
   },
 
   tasks: {
+    approveManager: (token, id) =>
+      api.request(`/tasks/${id}/approve-manager`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }),
     capture: (token, text) =>
       api.request("/tasks/capture", {
         method: "POST",

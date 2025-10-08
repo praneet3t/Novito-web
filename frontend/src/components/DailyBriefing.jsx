@@ -73,6 +73,36 @@ export default function DailyBriefing({ token }) {
         </div>
       )}
 
+      {briefing.risk_count > 0 && (
+        <div className="alert warning">
+          <span>RISK</span>
+          <div>
+            <strong>{briefing.risk_count} tasks have potential risks</strong>
+            {briefing.risk_tasks.map(t => (
+              <div key={t.id} className="small">{t.description} - {t.reason}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {briefing.pending_approval > 0 && (
+        <div className="alert info">
+          <span>INFO</span>
+          <div>
+            <strong>{briefing.pending_approval} tasks need manager approval</strong>
+          </div>
+        </div>
+      )}
+
+      {briefing.sla_breached > 0 && (
+        <div className="alert danger">
+          <span>SLA BREACH</span>
+          <div>
+            <strong>{briefing.sla_breached} tasks exceeded verification deadline</strong>
+          </div>
+        </div>
+      )}
+
       {briefing.high_priority.length > 0 && (
         <div style={{marginTop: '16px'}}>
           <strong>Top Priorities:</strong>
