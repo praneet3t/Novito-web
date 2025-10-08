@@ -42,7 +42,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     tokens: Mapped[List["Token"]] = relationship("Token", back_populates="user", cascade="all, delete-orphan")
-    tasks: Mapped[List["Task"]] = relationship("Task", back_populates="assignee", cascade="all, delete-orphan")
+    tasks: Mapped[List["Task"]] = relationship("Task", back_populates="assignee", foreign_keys="Task.assignee_id", cascade="all, delete-orphan")
     meetings_processed: Mapped[List["Meeting"]] = relationship("Meeting", back_populates="processed_by", cascade="all, delete-orphan")
 
 
@@ -96,13 +96,28 @@ class Task(Base):
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     blocker_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_updated: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Submission & Verification
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    submission_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    submission_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    verified_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    verification_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Scrum fields
+    story_points: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    sprint_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    acceptance_criteria: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    definition_of_done: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     assignee_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), nullable=False)
     bundle_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bundle_groups.id"), nullable=True)
     workcycle_id: Mapped[Optional[int]] = mapped_column(ForeignKey("work_cycles.id"), nullable=True)
 
-    assignee: Mapped["User"] = relationship("User", back_populates="tasks")
+    assignee: Mapped["User"] = relationship("User", back_populates="tasks", foreign_keys=[assignee_id])
+    verified_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[verified_by_id])
     meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="tasks")
     bundle: Mapped[Optional["BundleGroup"]] = relationship("BundleGroup", back_populates="tasks")
     workcycle: Mapped[Optional["WorkCycle"]] = relationship("WorkCycle", back_populates="tasks")

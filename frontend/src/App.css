@@ -42,9 +42,8 @@ html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
   display: flex;
   align-items: center;
   gap: 8px;
+  letter-spacing: -0.5px;
 }
-
-.brand-icon { font-size: 28px; }
 
 .header-right { display: flex; gap: 16px; align-items: center; }
 .who { color: var(--text-secondary); font-weight: 400; font-size: 14px; }
@@ -193,6 +192,136 @@ textarea { min-height: 100px; resize: vertical; }
 
 .tabs button:hover { color: var(--text); background: rgba(26, 115, 232, 0.04); }
 .tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.calendar-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.calendar-day:hover { background: var(--bg); }
+.calendar-day.today { background: var(--primary); color: white; font-weight: 600; }
+.calendar-day.has-tasks { border: 2px solid var(--primary); }
+.calendar-day.weekend { color: var(--text-secondary); }
+
+.task-count {
+  font-size: 10px;
+  background: var(--danger);
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  margin-top: 2px;
+}
+
+.sprint-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.sprint-column {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 12px;
+  min-height: 400px;
+}
+
+.sprint-column h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: grab;
+  transition: all 0.2s;
+}
+
+.task-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.task-card:active { cursor: grabbing; }
+
+.task-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.task-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.task-card-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.story-points {
+  background: var(--primary);
+  color: white;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.verification-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.submission-form {
+  background: var(--bg);
+  padding: 16px;
+  border-radius: var(--radius);
+  margin-top: 12px;
+}
+
+.three-col { grid-template-columns: 2fr 1fr; }
 
 .badge {
   padding: 4px 10px;

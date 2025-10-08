@@ -90,6 +90,17 @@ class TaskUpdateRequest(BaseModel):
     progress: Optional[int] = None
     is_blocked: Optional[bool] = None
     blocker_reason: Optional[str] = None
+    story_points: Optional[int] = None
+    acceptance_criteria: Optional[str] = None
+    definition_of_done: Optional[str] = None
+
+class TaskSubmissionRequest(BaseModel):
+    submission_notes: str
+    submission_url: Optional[str] = None
+
+class TaskVerificationRequest(BaseModel):
+    approved: bool
+    verification_notes: Optional[str] = None
 
 
 class WorkCycleRequest(BaseModel):
@@ -143,6 +154,15 @@ class TaskOut(BaseModel):
     progress: int = 0
     is_blocked: bool = False
     blocker_reason: Optional[str] = None
+    submitted_at: Optional[str] = None
+    submission_notes: Optional[str] = None
+    submission_url: Optional[str] = None
+    verified_at: Optional[str] = None
+    verified_by_id: Optional[int] = None
+    verification_notes: Optional[str] = None
+    story_points: Optional[int] = None
+    acceptance_criteria: Optional[str] = None
+    definition_of_done: Optional[str] = None
     
     class Config:
         orm_mode = True
@@ -395,10 +415,63 @@ def update_task(task_id: int, request: TaskUpdateRequest, current_user: User = D
         task.is_blocked = request.is_blocked
     if request.blocker_reason is not None:
         task.blocker_reason = request.blocker_reason
+    if request.story_points is not None:
+        task.story_points = request.story_points
+    if request.acceptance_criteria is not None:
+        task.acceptance_criteria = request.acceptance_criteria
+    if request.definition_of_done is not None:
+        task.definition_of_done = request.definition_of_done
     
     db.commit()
     db.refresh(task)
     return task
+
+@app.post("/tasks/{task_id}/submit", response_model=TaskOut)
+def submit_task(task_id: int, request: TaskSubmissionRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task.assignee_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only assignee can submit")
+    
+    task.submitted_at = datetime.utcnow()
+    task.submission_notes = request.submission_notes
+    task.submission_url = request.submission_url
+    task.status = "Submitted"
+    task.progress = 100
+    
+    db.commit()
+    db.refresh(task)
+    return task
+
+@app.post("/tasks/{task_id}/verify", response_model=TaskOut)
+def verify_task(task_id: int, request: TaskVerificationRequest, current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if not task.submitted_at:
+        raise HTTPException(status_code=400, detail="Task not submitted yet")
+    
+    task.verified_at = datetime.utcnow()
+    task.verified_by_id = current_user.id
+    task.verification_notes = request.verification_notes
+    
+    if request.approved:
+        task.status = "Done"
+    else:
+        task.status = "Doing"
+        task.submitted_at = None
+        task.progress = 50
+    
+    db.commit()
+    db.refresh(task)
+    return task
+
+@app.get("/tasks/pending-verification", response_model=List[TaskOut])
+def pending_verification(current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    return db.query(Task).filter(Task.status == "Submitted", Task.verified_at == None).order_by(Task.submitted_at.desc()).all()
 
 
 # Work Cycle endpoints

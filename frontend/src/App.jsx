@@ -10,7 +10,7 @@ export default function App() {
   return (
     <div className="app-root">
       <header className="topbar">
-        <h1 className="brand"><span className="brand-icon">🤖</span>Meeting Agent</h1>
+        <h1 className="brand">Meeting Agent</h1>
         <div className="header-right">
           {token && (
             <>

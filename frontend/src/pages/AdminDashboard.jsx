@@ -8,6 +8,8 @@ import WorkCycles from "../components/WorkCycles";
 import Bundles from "../components/Bundles";
 import DailyBriefing from "../components/DailyBriefing";
 import ProductivityAnalytics from "../components/ProductivityAnalytics";
+import SprintBoard from "../components/SprintBoard";
+import VerificationQueue from "../components/VerificationQueue";
 
 export default function AdminDashboard({ token }) {
   const [tab, setTab] = useState("dashboard");
@@ -15,11 +17,12 @@ export default function AdminDashboard({ token }) {
   return (
     <>
       <div className="tabs">
-        <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")}>📊 Dashboard</button>
-        <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}>📝 Overview</button>
-        <button className={tab === "review" ? "active" : ""} onClick={() => setTab("review")}>✅ Review Queue</button>
-        <button className={tab === "cycles" ? "active" : ""} onClick={() => setTab("cycles")}>🔄 Work Cycles</button>
-        <button className={tab === "bundles" ? "active" : ""} onClick={() => setTab("bundles")}>📦 Bundles</button>
+        <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button className={tab === "sprint" ? "active" : ""} onClick={() => setTab("sprint")}>Sprint Board</button>
+        <button className={tab === "verification" ? "active" : ""} onClick={() => setTab("verification")}>Verification</button>
+        <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}>Overview</button>
+        <button className={tab === "review" ? "active" : ""} onClick={() => setTab("review")}>Review Queue</button>
+        <button className={tab === "cycles" ? "active" : ""} onClick={() => setTab("cycles")}>Work Cycles</button>
       </div>
 
       {tab === "dashboard" && (
@@ -44,7 +47,8 @@ export default function AdminDashboard({ token }) {
 
       {tab === "review" && <ReviewQueue token={token} />}
       {tab === "cycles" && <WorkCycles token={token} />}
-      {tab === "bundles" && <Bundles token={token} />}
+      {tab === "sprint" && <SprintBoard token={token} />}
+      {tab === "verification" && <VerificationQueue token={token} />}
     </>
   );
 }

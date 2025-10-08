@@ -20,7 +20,7 @@ export default function ProductivityAnalytics({ token }) {
 
   return (
     <div className="card">
-      <h3>📈 Productivity Analytics</h3>
+      <h3>Productivity Analytics</h3>
       
       <div style={{marginBottom: '16px'}}>
         <label className="inline">
@@ -64,7 +64,7 @@ export default function ProductivityAnalytics({ token }) {
 
       {analytics.blocker_rate > 20 && (
         <div className="alert warning" style={{marginTop: '16px'}}>
-          <span>⚠️</span>
+          <span>WARNING</span>
           <span>High blocker rate detected. Consider reviewing team dependencies and resources.</span>
         </div>
       )}

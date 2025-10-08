@@ -28,7 +28,7 @@ export default function DailyBriefing({ token }) {
 
   return (
     <div className="card">
-      <h3>📊 Daily Briefing</h3>
+      <h3>Daily Briefing</h3>
       
       <div className="stat-grid">
         <div className="stat-card">
@@ -51,7 +51,7 @@ export default function DailyBriefing({ token }) {
 
       {briefing.blocked_count > 0 && (
         <div className="alert danger">
-          <span>⚠️</span>
+          <span>ALERT</span>
           <div>
             <strong>{briefing.blocked_count} tasks are blocked</strong>
             {briefing.blocked_tasks.map(t => (
@@ -63,7 +63,7 @@ export default function DailyBriefing({ token }) {
 
       {briefing.overdue_count > 0 && (
         <div className="alert warning">
-          <span>⏰</span>
+          <span>WARNING</span>
           <div>
             <strong>{briefing.overdue_count} tasks are overdue</strong>
             {briefing.overdue_tasks.map(t => (
@@ -75,7 +75,7 @@ export default function DailyBriefing({ token }) {
 
       {briefing.high_priority.length > 0 && (
         <div style={{marginTop: '16px'}}>
-          <strong>🎯 Top Priorities:</strong>
+          <strong>Top Priorities:</strong>
           {briefing.high_priority.map(t => (
             <div key={t.id} className="chip" style={{margin: '4px'}}>
               P{t.priority}: {t.description}

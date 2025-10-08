@@ -9,9 +9,9 @@ export default function UserDashboard({ token }) {
   return (
     <>
       <div className="tabs">
-        <button className={tab === "briefing" ? "active" : ""} onClick={() => setTab("briefing")}>📊 Briefing</button>
-        <button className={tab === "tasks" ? "active" : ""} onClick={() => setTab("tasks")}>✅ My Tasks</button>
-        <button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}>🎯 Priority Queue</button>
+        <button className={tab === "briefing" ? "active" : ""} onClick={() => setTab("briefing")}>Briefing</button>
+        <button className={tab === "tasks" ? "active" : ""} onClick={() => setTab("tasks")}>My Tasks</button>
+        <button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}>Priority Queue</button>
       </div>
 
       {tab === "briefing" && <DailyBriefing token={token} />}

@@ -44,6 +44,22 @@ export const api = {
   },
 
   tasks: {
+    submit: (token, id, data) =>
+      api.request(`/tasks/${id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+    verify: (token, id, data) =>
+      api.request(`/tasks/${id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
+    pendingVerification: (token) =>
+      api.request("/tasks/pending-verification", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
     list: (token) =>
       api.request("/tasks", {
         headers: { Authorization: `Bearer ${token}` },
