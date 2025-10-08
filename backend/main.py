@@ -173,6 +173,13 @@ class TaskOut(BaseModel):
     story_points: Optional[int] = None
     acceptance_criteria: Optional[str] = None
     definition_of_done: Optional[str] = None
+    is_potential_risk: bool = False
+    risk_reason: Optional[str] = None
+    needs_priority_review: bool = False
+    suggested_focus_time: Optional[str] = None
+    verification_deadline_at: Optional[str] = None
+    sla_breached: bool = False
+    team_id: Optional[int] = None
     
     class Config:
         orm_mode = True
@@ -374,7 +381,17 @@ def list_meetings(current_user: User = Depends(admin_required), db: Session = De
 
 @app.get("/tasks", response_model=List[TaskOut])
 def list_tasks(current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
-    return db.query(Task).order_by(Task.created_at.desc()).all()
+    tasks = db.query(Task).order_by(Task.created_at.desc()).all()
+    for task in tasks:
+        if task.submitted_at:
+            task.submitted_at = task.submitted_at.isoformat()
+        if task.verified_at:
+            task.verified_at = task.verified_at.isoformat()
+        if task.suggested_focus_time:
+            task.suggested_focus_time = task.suggested_focus_time.isoformat()
+        if task.verification_deadline_at:
+            task.verification_deadline_at = task.verification_deadline_at.isoformat()
+    return tasks
 
 @app.get("/tasks/my", response_model=List[TaskOut])
 def my_tasks(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -519,7 +536,13 @@ def verify_task(task_id: int, request: TaskVerificationRequest, current_user: Us
 
 @app.get("/tasks/pending-verification", response_model=List[TaskOut])
 def pending_verification(current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
-    return db.query(Task).filter(Task.status == "Submitted", Task.verified_at == None).order_by(Task.submitted_at.desc()).all()
+    tasks = db.query(Task).filter(Task.status == "Submitted", Task.verified_at == None).order_by(Task.submitted_at.desc()).all()
+    for task in tasks:
+        if task.submitted_at:
+            task.submitted_at = task.submitted_at.isoformat()
+        if task.verification_deadline_at:
+            task.verification_deadline_at = task.verification_deadline_at.isoformat()
+    return tasks
 
 
 # Work Cycle endpoints
