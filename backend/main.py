@@ -23,8 +23,11 @@ from database import (
     WorkCycle,
     BundleGroup,
     ProgressSnapshot,
+    Team,
+    TeamMember,
+    Notification,
 )
-from gemini_service import extract_tasks_from_transcript, generate_meeting_summary
+from gemini_service import extract_tasks_from_transcript, generate_meeting_summary, extract_task_from_capture
 from analytics_service import get_daily_briefing, get_productivity_analytics, detect_blockers_from_transcript
 
 # Constants
@@ -101,6 +104,13 @@ class TaskSubmissionRequest(BaseModel):
 class TaskVerificationRequest(BaseModel):
     approved: bool
     verification_notes: Optional[str] = None
+
+class TaskCaptureRequest(BaseModel):
+    text: str
+
+class TeamRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
 
 
 class WorkCycleRequest(BaseModel):
@@ -231,10 +241,31 @@ def create_summary(text: str) -> str:
         return text[:SUMMARY_MAX_LENGTH] + "..."
     return text
 
+def calculate_suggested_focus_time(due_date: Optional[str], effort_tag: Optional[str]) -> Optional[datetime]:
+    if not due_date or not effort_tag:
+        return None
+    
+    effort_hours = {"small": 1, "medium": 3, "large": 6}
+    hours = effort_hours.get(effort_tag, 3)
+    
+    due = datetime.fromisoformat(due_date)
+    suggested = due - timedelta(hours=hours)
+    return suggested
+
+def create_notification(db: Session, user_id: int, message: str, task_id: Optional[int] = None):
+    notif = Notification(user_id=user_id, message=message, task_id=task_id)
+    db.add(notif)
+    db.commit()
+
+def check_approval_workflow(task: Task) -> str:
+    if task.story_points and task.story_points > 8:
+        return "Manager Approval Pending"
+    if task.effort_tag == "large":
+        return "Manager Approval Pending"
+    return "To Do"
+
 def extract_tasks_from_text(db: Session, text: str, meeting_id: int) -> List[Task]:
     tasks = []
-    
-    # Use Gemini AI to extract tasks
     ai_tasks = extract_tasks_from_transcript(text)
     
     for task_data in ai_tasks:
@@ -243,16 +274,28 @@ def extract_tasks_from_text(db: Session, text: str, meeting_id: int) -> List[Tas
         if not assignee:
             assignee = get_or_create_user(db, assignee_name, DEFAULT_PASSWORD, False)
         
+        confidence = task_data.get("confidence", 1.0)
+        priority = task_data.get("priority", 5)
+        needs_review = False
+        
+        if confidence < 0.7:
+            priority = 4
+            needs_review = True
+        
         task = Task(
             description=task_data.get("description", "Follow up"),
             due_date=task_data.get("due_date"),
             status="To Do",
             meeting_id=meeting_id,
             assignee_id=assignee.id,
-            priority=task_data.get("priority", 5),
+            priority=priority,
             effort_tag=task_data.get("effort_tag"),
-            confidence=task_data.get("confidence", 1.0),
-            is_approved=False
+            confidence=confidence,
+            is_approved=False,
+            is_potential_risk=task_data.get("is_potential_risk", False),
+            risk_reason=task_data.get("risk_reason"),
+            needs_priority_review=needs_review,
+            suggested_focus_time=calculate_suggested_focus_time(task_data.get("due_date"), task_data.get("effort_tag"))
         )
         db.add(task)
         db.commit()
@@ -440,6 +483,9 @@ def submit_task(task_id: int, request: TaskSubmissionRequest, current_user: User
     task.submission_url = request.submission_url
     task.status = "Submitted"
     task.progress = 100
+    task.verification_deadline_at = datetime.utcnow() + timedelta(hours=24)
+    
+    create_notification(db, task.assignee_id, f"Task submitted for review: {task.description}", task.id)
     
     db.commit()
     db.refresh(task)
@@ -460,10 +506,12 @@ def verify_task(task_id: int, request: TaskVerificationRequest, current_user: Us
     
     if request.approved:
         task.status = "Done"
+        create_notification(db, task.assignee_id, f"Task approved: {task.description}", task.id)
     else:
         task.status = "Doing"
         task.submitted_at = None
         task.progress = 50
+        create_notification(db, task.assignee_id, f"Task rejected: {task.description}. Feedback: {request.verification_notes}", task.id)
     
     db.commit()
     db.refresh(task)
@@ -559,6 +607,114 @@ def daily_briefing(current_user: User = Depends(get_current_user), db: Session =
 @app.get("/analytics/productivity")
 def productivity_analytics(days: int = 7, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return get_productivity_analytics(db, days)
+
+@app.post("/tasks/capture", response_model=TaskOut, status_code=201)
+def capture_task(request: TaskCaptureRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    extracted = extract_task_from_capture(request.text)
+    
+    assignee_name = extracted.get("assignee", "unassigned")
+    assignee = find_user_by_username(db, assignee_name)
+    if not assignee:
+        assignee = current_user
+    
+    meeting = db.query(Meeting).first()
+    if not meeting:
+        meeting = Meeting(title="Quick Capture", date=datetime.utcnow().isoformat(), processed_by_id=current_user.id)
+        db.add(meeting)
+        db.commit()
+        db.refresh(meeting)
+    
+    task = Task(
+        description=extracted.get("description", request.text[:200]),
+        status="Capture Inbox",
+        meeting_id=meeting.id,
+        assignee_id=assignee.id,
+        priority=5,
+        is_approved=False
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
+@app.post("/tasks/{task_id}/approve-manager", response_model=TaskOut)
+def approve_manager(task_id: int, current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task.status != "Manager Approval Pending":
+        raise HTTPException(status_code=400, detail="Task not pending approval")
+    
+    task.status = "To Do"
+    task.is_approved = True
+    create_notification(db, task.assignee_id, f"Task approved by manager: {task.description}", task.id)
+    
+    db.commit()
+    db.refresh(task)
+    return task
+
+@app.get("/tasks/sla-breached", response_model=List[TaskOut])
+def sla_breached_tasks(current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    now = datetime.utcnow()
+    tasks = db.query(Task).filter(
+        Task.status == "Submitted",
+        Task.verification_deadline_at < now,
+        Task.verified_at == None
+    ).all()
+    
+    for task in tasks:
+        if not task.sla_breached:
+            task.sla_breached = True
+            create_notification(db, task.assignee_id, f"SLA breach: Task verification overdue - {task.description}", task.id)
+    
+    db.commit()
+    return tasks
+
+@app.post("/teams", status_code=201)
+def create_team(request: TeamRequest, current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    team = Team(name=request.name, description=request.description)
+    db.add(team)
+    db.commit()
+    db.refresh(team)
+    return team
+
+@app.post("/teams/{team_id}/members/{user_id}")
+def add_team_member(team_id: int, user_id: int, current_user: User = Depends(admin_required), db: Session = Depends(get_db)):
+    member = TeamMember(team_id=team_id, user_id=user_id)
+    db.add(member)
+    db.commit()
+    return {"status": "added"}
+
+@app.get("/notifications")
+def get_notifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Notification).filter(Notification.user_id == current_user.id).order_by(Notification.created_at.desc()).limit(50).all()
+
+@app.patch("/notifications/{notif_id}/read")
+def mark_notification_read(notif_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    notif = db.query(Notification).filter(Notification.id == notif_id, Notification.user_id == current_user.id).first()
+    if notif:
+        notif.is_read = True
+        db.commit()
+    return {"status": "read"}
+
+@app.post("/tasks/plan-tomorrow")
+def plan_tomorrow(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    tasks = db.query(Task).filter(
+        Task.assignee_id == current_user.id,
+        Task.status.in_(["To Do", "Doing"]),
+        Task.progress < 100
+    ).all()
+    
+    tomorrow = (datetime.utcnow() + timedelta(days=1)).date().isoformat()
+    
+    for task in tasks:
+        task.status = "Planned for Tomorrow"
+        if not task.due_date or task.due_date < tomorrow:
+            task.due_date = tomorrow
+    
+    db.commit()
+    return {"count": len(tasks), "status": "planned"}
 
 @app.get("/health")
 def health():

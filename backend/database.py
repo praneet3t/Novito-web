@@ -110,6 +110,23 @@ class Task(Base):
     sprint_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     acceptance_criteria: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     definition_of_done: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # AI Proactive Scheduling
+    suggested_focus_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    
+    # Contextual Risk Detection
+    is_potential_risk: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    risk_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Confidence-Based Priority
+    needs_priority_review: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # SLA Tracking
+    verification_deadline_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    sla_breached: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Team Association
+    team_id: Mapped[Optional[int]] = mapped_column(ForeignKey("teams.id"), nullable=True)
 
     assignee_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), nullable=False)
@@ -118,6 +135,7 @@ class Task(Base):
 
     assignee: Mapped["User"] = relationship("User", back_populates="tasks", foreign_keys=[assignee_id])
     verified_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[verified_by_id])
+    team: Mapped[Optional["Team"]] = relationship("Team", back_populates="tasks")
     meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="tasks")
     bundle: Mapped[Optional["BundleGroup"]] = relationship("BundleGroup", back_populates="tasks")
     workcycle: Mapped[Optional["WorkCycle"]] = relationship("WorkCycle", back_populates="tasks")
@@ -159,6 +177,42 @@ class ProgressSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     workcycle: Mapped["WorkCycle"] = relationship("WorkCycle", back_populates="snapshots")
+
+
+class Team(Base):
+    __tablename__ = "teams"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    members: Mapped[List["TeamMember"]] = relationship("TeamMember", back_populates="team", cascade="all, delete-orphan")
+    tasks: Mapped[List["Task"]] = relationship("Task", back_populates="team")
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(64), default="member", nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    team: Mapped["Team"] = relationship("Team", back_populates="members")
+    user: Mapped["User"] = relationship("User")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship("User")
+    task: Mapped[Optional["Task"]] = relationship("Task")
 
 
 # --- Utility functions ---

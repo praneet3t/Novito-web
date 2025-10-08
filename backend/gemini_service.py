@@ -15,9 +15,11 @@ For each task, identify:
 - priority: 1-10 based on urgency
 - effort_tag: "small", "medium", or "large"
 - confidence: 0.0-1.0 how confident you are this is a real task
+- is_potential_risk: true if language indicates dependency/waiting ("waiting for", "depends on", "blocked by")
+- risk_reason: explanation if is_potential_risk is true
 
 Return ONLY valid JSON array, no markdown:
-[{{"assignee": "Name", "description": "Task", "due_date": "2024-01-15", "priority": 5, "effort_tag": "medium", "confidence": 0.9}}]
+[{{"assignee": "Name", "description": "Task", "due_date": "2024-01-15", "priority": 5, "effort_tag": "medium", "confidence": 0.9, "is_potential_risk": false, "risk_reason": null}}]
 
 Transcript:
 {transcript}"""
@@ -45,3 +47,27 @@ Transcript:
         return response.text.strip()
     except Exception:
         return transcript[:500] + "..."
+
+def extract_task_from_capture(text: str) -> Dict:
+    prompt = f"""Extract a task from this quick note/idea.
+Identify:
+- description: what needs to be done
+- assignee: person mentioned or "unassigned" if none
+
+Return ONLY valid JSON, no markdown:
+{{"description": "Task description", "assignee": "Name or unassigned"}}
+
+Note:
+{text}"""
+
+    try:
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        return json.loads(text.strip())
+    except Exception as e:
+        print(f"Capture error: {e}")
+        return {"description": text[:200], "assignee": "unassigned"}

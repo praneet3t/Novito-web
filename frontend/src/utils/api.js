@@ -44,6 +44,17 @@ export const api = {
   },
 
   tasks: {
+    capture: (token, text) =>
+      api.request("/tasks/capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text }),
+      }),
+    planTomorrow: (token) =>
+      api.request("/tasks/plan-tomorrow", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }),
     submit: (token, id, data) =>
       api.request(`/tasks/${id}/submit`, {
         method: "POST",
@@ -112,6 +123,18 @@ export const api = {
       }),
     snapshot: (token, id) =>
       api.request(`/workcycles/${id}/snapshot`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+  },
+
+  notifications: {
+    list: (token) =>
+      api.request("/notifications", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    markRead: (token, id) =>
+      api.request(`/notifications/${id}/read`, {
+        method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       }),
   },
